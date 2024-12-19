@@ -60,6 +60,11 @@ class MainApp{
                         self.copyElementXPath();
                     }
                     break;
+                case 50: // 数字键2
+                    if (event.altKey) {
+                        self.copyShortElementXPath();
+                    }
+                    break;
             }
         });
 
@@ -244,12 +249,18 @@ class MainApp{
 
         }
 
+        // 保存最后悬停的元素,供生成简短xpath使用
+        window.lastHoveredElement = inputElement;
+        
         window.XPath_info = "xpath:" + self.getElementXPath(inputElement);
+        window.ShortXPath_info = "xpath:" + self.getShortElementXPath(inputElement);
 
         window.anotherGlobalVar = Name + attrib_info + text;
         window.anotherGlobalVar_simple = Name + attrib_info_simple;
 
-        window.info = "<b>🔹按alt+1 复制XPath--></b>@@" + window.XPath_info + "<hr>" + "<b>🔹按F2复制精简语法 <br>🔹按F8复制完整语法--> </b>@@" + Name + attrib_info + text;
+        window.info = "<b>🔹按alt+1 复制XPath--></b>@@" + window.XPath_info + 
+                     "<br><b>🔹按alt+2 复制简短XPath--></b>@@" + window.ShortXPath_info + "<hr>" + 
+                     "<b>🔹按F2复制精简语法 <br>🔹按F8复制完整语法--> </b>@@" + Name + attrib_info + text;
 
 
     }
@@ -466,7 +477,66 @@ class MainApp{
         this.copyToClipboard(window.XPath_info);
         alert("✔️已经复制下面XPath语法到剪贴板 \n"+window.XPath_info);
     
+    }    
+
+
+
+    // 新增的，获取简短的XPath
+    getShortElementXPath(element) {
+        // 1. 优先使用id
+        if (element && element.id) {
+            return `//*[@id="${element.id}"]`;
+        }
+        
+        // 2. 尝试使用独���的class
+        if (element.className && !element.className.includes(' ')) {
+            return `//*[@class="${element.className}"]`;
+        }
+        
+        // 3. 尝试使用name属性
+        if (element.name) {
+            return `//*[@name="${element.name}"]`;
+        }
+
+        // 4. 尝试使用文本内容(如果文本较短且独特)
+        const text = element.textContent?.trim();
+        if (text && text.length < 20) {
+            return `//*[text()="${text}"]`;
+        }
+        
+        // 5. 后备方案：使用相对路径(只往上找2层)
+        let current = element;
+        let tagName = current.tagName.toLowerCase();
+        let path = `//${tagName}`;
+        
+        // 添加当前元素的class作为条件(如果存在)
+        if (element.className) {
+            path += `[contains(@class,"${element.className}")]`;
+        }
+        
+        // 如果有父元素,再加一层
+        if (current.parentElement) {
+            const parent = current.parentElement;
+            const parentTag = parent.tagName.toLowerCase();
+            path = `//${parentTag}//${tagName}`;
+            if (parent.className) {
+                path = `//${parentTag}[contains(@class,"${parent.className}")]//${tagName}`;
+            }
+        }
+        
+        return path;
     }
+
+    // 复制简短XPath
+    copyShortElementXPath() {
+        const shortXPath = "xpath:" + this.getShortElementXPath(window.lastHoveredElement);
+        this.copyToClipboard(shortXPath);
+        alert("✔️已经复制下面简短XPath语法到剪贴板 \n" + shortXPath);
+    }
+
+
+
+
     
       
                 
@@ -498,7 +568,7 @@ class MainApp{
             // 用户点击了取消按钮或关闭了对话框
         }
         
-        alert('✔️已��复制该精简语法到剪贴板  \n'+tishi2);
+        alert('✔️已复制该精简语法到剪贴板  \n'+tishi2);
     
     }
 
@@ -1146,6 +1216,19 @@ document.addEventListener('selectionchange', function() {
           chrome.runtime.sendMessage({ youdao_text: selection.toString() });
     }
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
