@@ -472,14 +472,41 @@ class MainApp{
         }
     }
     
-    // 复制元素的XPath
+    // 添加一个测试XPath的函数
+    testXPath(xpath) {
+        // 移除可能存在的'xpath:'前缀
+        const cleanXPath = xpath.replace(/^xpath:/, '');
+        
+        // 测试xpath是否能找到元素
+        const result = document.evaluate(
+            cleanXPath,
+            document,
+            null,
+            XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
+            null
+        );
+        
+        return result.snapshotLength; // 返回找到的元素数量
+    }
+
+    // 修改复制XPath的函数
     copyElementXPath() {
-        this.copyToClipboard(window.XPath_info);
-        alert("✔️已经复制下面XPath语法到剪贴板 \n"+window.XPath_info);
-    
-    }    
-
-
+        const xpath = window.XPath_info;
+        this.copyToClipboard(xpath);
+        
+        // 测试XPath并获取匹配数量
+        const count = this.testXPath(xpath);
+        
+        // 根据匹配数量生成不同的提示信息
+        let message = `✔️已经复制下面XPath语法到剪贴板\n${xpath}\n`;
+        if (count === 0) {
+            message += "⚠️警告：当前XPath未能定位到任何元素";
+        } else {
+            message += `经检测定位到${count}个位置。`;
+        }
+        
+        alert(message);
+    }
 
     // 新增的，获取简短的XPath
     getShortElementXPath(element) {
@@ -562,11 +589,23 @@ class MainApp{
         return path;
     }
 
-    // 复制简短XPath
+    // 修改复制简短XPath的函数
     copyShortElementXPath() {
         const shortXPath = "xpath:" + this.getShortElementXPath(window.lastHoveredElement);
         this.copyToClipboard(shortXPath);
-        alert("✔️已经复制下面简短XPath语法到剪贴板 \n" + shortXPath);
+        
+        // 测试XPath并获取匹配数量
+        const count = this.testXPath(shortXPath);
+        
+        // 根据匹配数量生成不同的提示信息
+        let message = `✔️已经复制下面简短XPath语法到剪贴板\n${shortXPath}\n`;
+        if (count === 0) {
+            message += "⚠️警告：当前XPath未能定位到任何元素";
+        } else {
+            message += `经检测定位到${count}个位置。`;
+        }
+        
+        alert(message);
     }
 
 
