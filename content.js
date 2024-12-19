@@ -488,7 +488,7 @@ class MainApp{
             return `//*[@id="${element.id}"]`;
         }
         
-        // 2. 尝试使用独���的class
+        // 2. 尝试使用独特的class
         if (element.className && !element.className.includes(' ')) {
             return `//*[@class="${element.className}"]`;
         }
@@ -498,29 +498,64 @@ class MainApp{
             return `//*[@name="${element.name}"]`;
         }
 
-        // 4. 尝试使用文本内容(如果文本较短且独特)
+        // 4. 对于链接元素(a标签)的特殊处理
+        if (element.tagName.toLowerCase() === 'a') {
+            const text = element.textContent?.trim();
+            
+            // 1. 优先使用文本内容(如果较短)
+            if (text && text.length < 20) {
+                return `//a[text()="${text}"]`;
+            }
+            
+            // 2. 如果有href属性,提取最后一段有意义的部分
+            if (element.href) {
+                const hrefParts = element.href.split('/');
+                // 过滤掉空字符串
+                const meaningfulParts = hrefParts.filter(part => part.length > 0);
+                if (meaningfulParts.length > 0) {
+                    const lastPart = meaningfulParts[meaningfulParts.length - 1];
+                    if (lastPart) {
+                        return `//a[contains(@href,"${lastPart}")]`;
+                    }
+                }
+            }
+        }
+
+        // 5. 其他元素的文本内容处理
         const text = element.textContent?.trim();
         if (text && text.length < 20) {
-            return `//*[text()="${text}"]`;
+            // 5.1 如果是纯文本内容
+            if (!/[<>]/.test(text)) {
+                // 使用contains而不是完全匹配
+                return `//*[contains(text(),"${text}")]`;
+            }
         }
         
-        // 5. 后备方案：使用相对路径(只往上找2层)
+        // 6. 后备方案：使用相对路径(只往上找2层)
         let current = element;
         let tagName = current.tagName.toLowerCase();
         let path = `//${tagName}`;
         
-        // 添加当前元素的class作为条件(如果存在)
+        // 6.1 添加当前元素的class作为条件(如果存在)
         if (element.className) {
-            path += `[contains(@class,"${element.className}")]`;
+            // 只使用第一个class,避免路径过长
+            const firstClass = element.className.split(' ')[0];
+            path += `[contains(@class,"${firstClass}")]`;
         }
         
-        // 如果有父元素,再加一层
+        // 6.2 如果有父元素,再加一层
         if (current.parentElement) {
             const parent = current.parentElement;
             const parentTag = parent.tagName.toLowerCase();
-            path = `//${parentTag}//${tagName}`;
-            if (parent.className) {
-                path = `//${parentTag}[contains(@class,"${parent.className}")]//${tagName}`;
+            if (parent.id) {
+                // 如果父元素有id,优先使用id
+                path = `//*[@id="${parent.id}"]//${tagName}`;
+            } else if (parent.className) {
+                // 否则使用父元素的第一个class
+                const parentFirstClass = parent.className.split(' ')[0];
+                path = `//${parentTag}[contains(@class,"${parentFirstClass}")]//${tagName}`;
+            } else {
+                path = `//${parentTag}//${tagName}`;
             }
         }
         
