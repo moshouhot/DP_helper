@@ -65,6 +65,11 @@ class MainApp{
                         self.copyShortElementXPath();
                     }
                     break;
+                case 51: // 数字键3
+                    if (event.altKey) {
+                        self.copyCombinedElementXPath();
+                    }
+                    break;
             }
         });
 
@@ -253,13 +258,16 @@ class MainApp{
         window.lastHoveredElement = inputElement;
         
         window.XPath_info = "xpath:" + self.getElementXPath(inputElement);
-        window.ShortXPath_info = "xpath:" + self.getShortElementXPath(inputElement);
+        const shortXPaths = self.getShortElementXPath(inputElement);
+        window.ShortXPath_info = "xpath:" + shortXPaths.simple;
+        window.CombinedXPath_info = "xpath:" + shortXPaths.combined;
 
         window.anotherGlobalVar = Name + attrib_info + text;
         window.anotherGlobalVar_simple = Name + attrib_info_simple;
 
         window.info = "<b>🔹按alt+1 复制XPath--></b>@@" + window.XPath_info + 
-                     "<br><b>🔹按alt+2 复制简短XPath--></b>@@" + window.ShortXPath_info + "<hr>" + 
+                     "<br><b>🔹按alt+2 复制简短XPath--></b>@@" + window.ShortXPath_info +
+                     "<br><b>🔹按alt+3 复制组合XPath--></b>@@" + window.CombinedXPath_info + "<hr>" + 
                      "<b>🔹按F2复制精简语法 <br>🔹按F8复制完整语法--> </b>@@" + Name + attrib_info + text;
 
 
@@ -510,40 +518,73 @@ class MainApp{
 
     // 新增的，获取简短的XPath
     getShortElementXPath(element) {
+        let result = {
+            simple: '',
+            combined: ''
+        };
+        
         // 1. 优先使用id
         if (element && element.id) {
-            return `//*[@id="${element.id}"]`;
+            const idPath = `//*[@id="${element.id}"]`;
+            result.simple = idPath;
+            result.combined = `//${element.tagName.toLowerCase()}[@id="${element.id}"]`;
+            return result;
         }
         
         // 2. 尝试使用独特的class
         if (element.className && !element.className.includes(' ')) {
-            return `//*[@class="${element.className}"]`;
+            const classPath = `//*[@class="${element.className}"]`;
+            result.simple = classPath;
+            // 组合class和标签名
+            result.combined = `//${element.tagName.toLowerCase()}[@class="${element.className}"]`;
+            return result;
         }
         
         // 3. 尝试使用name属性
         if (element.name) {
-            return `//*[@name="${element.name}"]`;
+            const namePath = `//*[@name="${element.name}"]`;
+            result.simple = namePath;
+            // 组合name和标签名
+            result.combined = `//${element.tagName.toLowerCase()}[@name="${element.name}"]`;
+            return result;
         }
 
         // 4. 对于链接元素(a标签)的特殊处理
         if (element.tagName.toLowerCase() === 'a') {
             const text = element.textContent?.trim();
             
-            // 1. 优先使用文本内容(如果较短)
+            // 4.1 优先使用文本内容(如果较短)
             if (text && text.length < 20) {
-                return `//a[text()="${text}"]`;
+                result.simple = `//a[text()="${text}"]`;
+                // 如果有href，组合text和href的最后部分
+                if (element.href) {
+                    const hrefParts = element.href.split('/');
+                    const meaningfulParts = hrefParts.filter(part => part.length > 0);
+                    if (meaningfulParts.length > 0) {
+                        const lastPart = meaningfulParts[meaningfulParts.length - 1];
+                        result.combined = `//a[text()="${text}" and contains(@href,"${lastPart}")]`;
+                        return result;
+                    }
+                }
+                result.combined = result.simple;
+                return result;
             }
             
-            // 2. 如果有href属性,提取最后一段有意义的部分
+            // 4.2 如果有href属性,提取最后一段有意义的部分
             if (element.href) {
                 const hrefParts = element.href.split('/');
-                // 过滤掉空字符串
                 const meaningfulParts = hrefParts.filter(part => part.length > 0);
                 if (meaningfulParts.length > 0) {
                     const lastPart = meaningfulParts[meaningfulParts.length - 1];
-                    if (lastPart) {
-                        return `//a[contains(@href,"${lastPart}")]`;
+                    result.simple = `//a[contains(@href,"${lastPart}")]`;
+                    // 如果有class，组合href和class
+                    if (element.className) {
+                        const firstClass = element.className.split(' ')[0];
+                        result.combined = `//a[contains(@href,"${lastPart}") and contains(@class,"${firstClass}")]`;
+                    } else {
+                        result.combined = result.simple;
                     }
+                    return result;
                 }
             }
         }
@@ -553,21 +594,37 @@ class MainApp{
         if (text && text.length < 20) {
             // 5.1 如果是纯文本内容
             if (!/[<>]/.test(text)) {
-                // 使用contains而不是完全匹配
-                return `//*[contains(text(),"${text}")]`;
+                result.simple = `//*[contains(text(),"${text}")]`;
+                // 组合标签名、class和文本
+                if (element.className) {
+                    const firstClass = element.className.split(' ')[0];
+                    result.combined = `//${element.tagName.toLowerCase()}[contains(@class,"${firstClass}") and contains(text(),"${text}")]`;
+                } else {
+                    result.combined = `//${element.tagName.toLowerCase()}[contains(text(),"${text}")]`;
+                }
+                return result;
             }
         }
         
         // 6. 后备方案：使用相对路径(只往上找2层)
         let current = element;
         let tagName = current.tagName.toLowerCase();
-        let path = `//${tagName}`;
+        let simplePath = `//${tagName}`;
+        let combinedPath = `//${tagName}`;
         
         // 6.1 添加当前元素的class作为条件(如果存在)
         if (element.className) {
-            // 只使用第一个class,避免路径过长
             const firstClass = element.className.split(' ')[0];
-            path += `[contains(@class,"${firstClass}")]`;
+            simplePath += `[contains(@class,"${firstClass}")]`;
+            combinedPath += `[contains(@class,"${firstClass}")]`;
+            
+            // 为combined路径添加额外的属性
+            if (element.title) {
+                combinedPath += ` and @title="${element.title}"`;
+            }
+            if (text && text.length < 20) {
+                combinedPath += ` and contains(text(),"${text}")`;
+            }
         }
         
         // 6.2 如果有父元素,再加一层
@@ -576,22 +633,28 @@ class MainApp{
             const parentTag = parent.tagName.toLowerCase();
             if (parent.id) {
                 // 如果父元素有id,优先使用id
-                path = `//*[@id="${parent.id}"]//${tagName}`;
+                simplePath = `//*[@id="${parent.id}"]//${tagName}`;
+                combinedPath = `//${parentTag}[@id="${parent.id}"]//${combinedPath}`;
             } else if (parent.className) {
                 // 否则使用父元素的第一个class
                 const parentFirstClass = parent.className.split(' ')[0];
-                path = `//${parentTag}[contains(@class,"${parentFirstClass}")]//${tagName}`;
+                simplePath = `//${parentTag}[contains(@class,"${parentFirstClass}")]//${tagName}`;
+                combinedPath = `//${parentTag}[contains(@class,"${parentFirstClass}")]//${combinedPath}`;
             } else {
-                path = `//${parentTag}//${tagName}`;
+                simplePath = `//${parentTag}//${tagName}`;
+                combinedPath = `//${parentTag}//${combinedPath}`;
             }
         }
         
-        return path;
+        result.simple = simplePath;
+        result.combined = combinedPath;
+        return result;
     }
 
     // 修改复制简短XPath的函数
     copyShortElementXPath() {
-        const shortXPath = "xpath:" + this.getShortElementXPath(window.lastHoveredElement);
+        const shortXPaths = this.getShortElementXPath(window.lastHoveredElement);
+        const shortXPath = "xpath:" + shortXPaths.simple;
         this.copyToClipboard(shortXPath);
         
         // 测试XPath并获取匹配数量
@@ -599,6 +662,26 @@ class MainApp{
         
         // 根据匹配数量生成不同的提示信息
         let message = `✔️已经复制下面简短XPath语法到剪贴板\n${shortXPath}\n`;
+        if (count === 0) {
+            message += "⚠️警告：当前XPath未能定位到任何元素";
+        } else {
+            message += `经检测定位到${count}个位置。`;
+        }
+        
+        alert(message);
+    }
+
+    // 新增复制组合XPath的函数
+    copyCombinedElementXPath() {
+        const shortXPaths = this.getShortElementXPath(window.lastHoveredElement);
+        const combinedXPath = "xpath:" + shortXPaths.combined;
+        this.copyToClipboard(combinedXPath);
+        
+        // 测试XPath并获取匹配数量
+        const count = this.testXPath(combinedXPath);
+        
+        // 根据匹配数量生成不同的提示信息
+        let message = `✔️已经复制下面组合XPath语法到剪贴板\n${combinedXPath}\n`;
         if (count === 0) {
             message += "⚠️警告：当前XPath未能定位到任何元素";
         } else {

@@ -38,8 +38,10 @@ getElementXPath(element) {
 ## 2. 新增getShortElementXPath函数
 
 ### 2.1 功能说明
-提供更简短且可靠的XPath定位方式,按以下优先级尝试:
+提供两种XPath定位方式：简单XPath和组合XPath
 
+#### 简单XPath (simple)
+按以下优先级尝试:
 1. ID属性定位
 2. 独特的class定位
 3. name属性定位
@@ -49,34 +51,65 @@ getElementXPath(element) {
 5. 其他元素的文本内容处理
 6. 两层相对路径作为后备方案
 
-### 2.2 实现代码
+#### 组合XPath (combined)
+在简单XPath的基础上，增加更多属性组合以提供更精确的定位：
+1. 标签名 + ID: `//${tag}[@id="xxx"]`
+2. 标签名 + class: `//${tag}[@class="xxx"]`
+3. 标签名 + name: `//${tag}[@name="xxx"]`
+4. 链接元素特殊处理：
+   - 文本 + href: `//a[text()="xxx" and contains(@href,"yyy")]`
+   - href + class: `//a[contains(@href,"xxx") and contains(@class,"yyy")]`
+5. 标签名 + class + 文本: `//${tag}[contains(@class,"xxx") and contains(text(),"yyy")]`
+6. 标签名 + class + title: `//${tag}[contains(@class,"xxx") and @title="yyy"]`
+
+### 2.2 使用方式
+1. Alt+2: 复制简单XPath
+2. Alt+3: 复制组合XPath
+3. 界面同时显示两种XPath供选择
+
+### 2.3 实现代码
 ```javascript
 getShortElementXPath(element) {
+    let result = {
+        simple: '',
+        combined: ''
+    };
+    
     // 1. ID优先
     if (element && element.id) {
-        return `//*[@id="${element.id}"]`;
+        result.simple = `//*[@id="${element.id}"]`;
+        result.combined = `//${element.tagName.toLowerCase()}[@id="${element.id}"]`;
+        return result;
     }
     
     // 2. 独特class
     if (element.className && !element.className.includes(' ')) {
-        return `//*[@class="${element.className}"]`;
+        result.simple = `//*[@class="${element.className}"]`;
+        result.combined = `//${element.tagName.toLowerCase()}[@class="${element.className}"]`;
+        return result;
     }
     
     // 3. name属性
     if (element.name) {
-        return `//*[@name="${element.name}"]`;
+        result.simple = `//*[@name="${element.name}"]`;
+        result.combined = `//${element.tagName.toLowerCase()}[@name="${element.name}"]`;
+        return result;
     }
 
     // 4. 链接元素特殊处理
     if (element.tagName.toLowerCase() === 'a') {
         const text = element.textContent?.trim();
         if (text && text.length < 20) {
-            return `//a[text()="${text}"]`;
+            result.simple = `//a[text()="${text}"]`;
+            result.combined = `//a[text()="${text}" and contains(@href,"${element.href}")]`;
+            return result;
         }
         if (element.href) {
             const lastPart = element.href.split('/').pop();
             if (lastPart) {
-                return `//a[contains(@href,"${lastPart}")]`;
+                result.simple = `//a[contains(@href,"${lastPart}")]`;
+                result.combined = `//a[contains(@href,"${lastPart}")]`;
+                return result;
             }
         }
     }
@@ -84,7 +117,9 @@ getShortElementXPath(element) {
     // 5. 文本内容处理
     const text = element.textContent?.trim();
     if (text && text.length < 20 && !/[<>]/.test(text)) {
-        return `//*[contains(text(),"${text}")]`;
+        result.simple = `//*[contains(text(),"${text}")]`;
+        result.combined = `//*[contains(text(),"${text}")]`;
+        return result;
     }
     
     // 6. 两层相对路径
@@ -95,13 +130,35 @@ getShortElementXPath(element) {
     if (current.parentElement) {
         const parent = current.parentElement;
         if (parent.id) {
-            return `//*[@id="${parent.id}"]//${tagName}`;
+            result.simple = `//*[@id="${parent.id}"]//${tagName}`;
+            result.combined = `//${tagName}[@id="${parent.id}"]`;
+            return result;
         }
     }
     
-    return path;
+    return result;
 }
 ```
+
+### 2.4 返回值示例
+```javascript
+{
+    simple: '//*[@id="login"]',
+    combined: '//button[@id="login"]'
+}
+```
+
+### 2.5 优势
+1. 简单XPath
+   - 更短的路径
+   - 更好的可读性
+   - 适合简单场景
+
+2. 组合XPath
+   - 更精确的定位
+   - 更强的鲁棒性
+   - 适合复杂场景
+   - 降低误匹配风险
 
 ## 3. XPath验证功能
 
