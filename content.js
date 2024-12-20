@@ -265,7 +265,8 @@ class MainApp{
         window.anotherGlobalVar = Name + attrib_info + text;
         window.anotherGlobalVar_simple = Name + attrib_info_simple;
 
-        window.info = "<b>🔹按alt+1 复制XPath--></b>@@" + window.XPath_info + 
+        window.info = "<b>🔹元素层级结构（从上到下）：</b><br>@@" + this.getElementHierarchy(inputElement) +
+                     "<hr><b>🔹按alt+1 复制XPath--></b>@@" + window.XPath_info + 
                      "<br><b>🔹可用的XPath方案：</b>@@" + this.getAllXPathStrategies(inputElement) +
                      "<br><b>🔹按alt+2 复制简短XPath--></b>@@" + window.ShortXPath_info +
                      "<br><b>🔹按alt+3 复制组合XPath--></b>@@" + window.CombinedXPath_info + "<hr>" + 
@@ -1018,6 +1019,63 @@ class MainApp{
     }
     
     return strategies.join(" | ");
+  }
+
+  // 添加新方法：获取元素的层级结构
+  getElementHierarchy(element) {
+    if (!element || !(element instanceof Element)) {
+        return "当前位置无法解析元素";
+    }
+
+    let hierarchy = [];
+    let current = element;
+    let index = 0;
+
+    while (current && current.tagName && index < 4) { // 最多显示4层
+        let elementInfo = {
+            tag: current.tagName.toLowerCase(),
+            classes: current.className,
+            text: current.textContent?.trim().slice(0, 20),
+            zIndex: window.getComputedStyle(current).zIndex,
+            position: window.getComputedStyle(current).position,
+            isClickable: this.isClickable(current)
+        };
+        
+        hierarchy.unshift(elementInfo);
+        current = current.parentElement;
+        index++;
+    }
+
+    // 格式化显示
+    return hierarchy.map((info, index) => {
+        let prefix = "—".repeat(index);
+        let clickable = info.isClickable ? "🖱️可点击" : "";
+        let position = info.position !== "static" ? `定位:${info.position}` : "";
+        let zIndex = info.zIndex !== "auto" ? `层级:${info.zIndex}` : "";
+        let classes = info.classes ? `class="${info.classes}"` : "";
+        let text = info.text ? `text="${info.text}"` : "";
+        
+        return `${prefix}${info.tag} ${clickable} ${position} ${zIndex} ${classes} ${text}`.trim();
+    }).join("\n");
+  }
+
+  // 添加新方法：检查元素是否可点击
+  isClickable(element) {
+    const style = window.getComputedStyle(element);
+    const isVisible = style.display !== 'none' && 
+                     style.visibility !== 'hidden' && 
+                     style.opacity !== '0';
+    
+    if (!isVisible) return false;
+
+    // 检查是否有点击相关事件监听器
+    const hasClickHandler = element.onclick !== null || 
+                          element.getAttribute('onclick') !== null ||
+                          element.tagName.toLowerCase() === 'button' ||
+                          element.tagName.toLowerCase() === 'a' ||
+                          element.role === 'button';
+
+    return hasClickHandler;
   }
 
 }
