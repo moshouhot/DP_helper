@@ -266,6 +266,7 @@ class MainApp{
         window.anotherGlobalVar_simple = Name + attrib_info_simple;
 
         window.info = "<b>🔹按alt+1 复制XPath--></b>@@" + window.XPath_info + 
+                     "<br><b>🔹可用的XPath方案：</b>@@" + this.getAllXPathStrategies(inputElement) +
                      "<br><b>🔹按alt+2 复制简短XPath--></b>@@" + window.ShortXPath_info +
                      "<br><b>🔹按alt+3 复制组合XPath--></b>@@" + window.CombinedXPath_info + "<hr>" + 
                      "<b>🔹按F2复制精简语法 <br>🔹按F8复制完整语法--> </b>@@" + Name + attrib_info + text;
@@ -646,15 +647,22 @@ class MainApp{
             // 4.1 优先使用文本内容(如果较短)
             if (text && text.length < 20) {
                 result.simple = `//a[text()="${text}"]`;
-                // 如果有href，组合text和href的最后部分
+                // 如果有href，只使用URL的最后一个有意义部分
                 if (element.href) {
-                    const hrefParts = element.href.split('/');
-                    const meaningfulParts = hrefParts.filter(part => part.length > 0);
-                    if (meaningfulParts.length > 0) {
-                        const lastPart = meaningfulParts[meaningfulParts.length - 1];
-                        result.combined = `//a[text()="${text}" and contains(@href,"${lastPart}")]`;
-                        return result;
+                    try {
+                        const url = new URL(element.href);
+                        const pathParts = url.pathname.split('/').filter(p => p);
+                        const lastPart = pathParts[pathParts.length - 1];
+                        if (lastPart) {
+                            result.combined = `//a[text()="${text}" and contains(@href,"${lastPart}")]`;
+                        } else {
+                            result.combined = result.simple;
+                        }
+                    } catch (e) {
+                        // 如果URL解析失败，退回到使用simple版本
+                        result.combined = result.simple;
                     }
+                    return result;
                 }
                 result.combined = result.simple;
                 return result;
@@ -662,19 +670,23 @@ class MainApp{
             
             // 4.2 如果有href属性,提取最后一段有意义的部分
             if (element.href) {
-                const hrefParts = element.href.split('/');
-                const meaningfulParts = hrefParts.filter(part => part.length > 0);
-                if (meaningfulParts.length > 0) {
-                    const lastPart = meaningfulParts[meaningfulParts.length - 1];
-                    result.simple = `//a[contains(@href,"${lastPart}")]`;
-                    // 如果有class，组合href和class
-                    if (element.className) {
-                        const firstClass = element.className.split(' ')[0];
-                        result.combined = `//a[contains(@href,"${lastPart}") and contains(@class,"${firstClass}")]`;
-                    } else {
-                        result.combined = result.simple;
+                try {
+                    const url = new URL(element.href);
+                    const pathParts = url.pathname.split('/').filter(p => p);
+                    const lastPart = pathParts[pathParts.length - 1];
+                    if (lastPart) {
+                        result.simple = `//a[contains(@href,"${lastPart}")]`;
+                        // 如果有class，组合href和class
+                        if (element.className) {
+                            const firstClass = element.className.split(' ')[0];
+                            result.combined = `//a[contains(@href,"${lastPart}") and contains(@class,"${firstClass}")]`;
+                        } else {
+                            result.combined = result.simple;
+                        }
+                        return result;
                     }
-                    return result;
+                } catch (e) {
+                    // URL解析失败时继续后续策略
                 }
             }
         }
@@ -941,6 +953,72 @@ class MainApp{
   
   }
 
+  // 添加新方法
+  getAllXPathStrategies(element) {
+    if (!element || !(element instanceof Element)) {
+        return "当前位置无法解析元素";
+    }
+
+    let strategies = [];
+    
+    // 1. ID策略检查
+    if (element.id) {
+        strategies.push(`ID策略: //*[@id="${element.id}"]`);
+    }
+    
+    // 检查祖先ID
+    let parent = element.parentElement;
+    let generation = 1;
+    while (parent && generation <= 3) {
+        if (parent.id) {
+            strategies.push(`祖先ID策略(${generation}代): //*[@id="${parent.id}"]//*`);
+            break;
+        }
+        parent = parent.parentElement;
+        generation++;
+    }
+    
+    // 2. Class策略检查
+    if (element.className && !element.className.includes(' ')) {
+        strategies.push(`Class策略: //*[@class="${element.className}"]`);
+    }
+    
+    // 3. Name属性策略检查
+    if (element.name) {
+        strategies.push(`Name策略: //*[@name="${element.name}"]`);
+    }
+    
+    // 4. 链接策略检查
+    if (element.tagName.toLowerCase() === 'a') {
+        const text = element.textContent?.trim();
+        if (text && text.length < 20) {
+            strategies.push(`链接文本策略: //a[text()="${text}"]`);
+        }
+        if (element.href) {
+            try {
+                const url = new URL(element.href);
+                const pathParts = url.pathname.split('/').filter(p => p);
+                const lastPart = pathParts[pathParts.length - 1];
+                if (lastPart) {
+                    strategies.push(`链接href策略: //a[contains(@href,"${lastPart}")]`);
+                }
+            } catch (e) {}
+        }
+    }
+    
+    // 5. 文本内容策略检查
+    const text = element.textContent?.trim();
+    if (text && text.length < 20 && !/[<>]/.test(text)) {
+        strategies.push(`文本策略: //*[contains(text(),"${text}")]`);
+    }
+    
+    // 6. 如果没有其他策略，添加相对路径策略
+    if (strategies.length === 0) {
+        strategies.push(`相对路径策略: //${element.tagName.toLowerCase()}`);
+    }
+    
+    return strategies.join(" | ");
+  }
 
 }
 
