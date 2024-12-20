@@ -43,7 +43,7 @@ class MainApp{
         this.listen_mousemove_to_update_div(); //监听鼠标移动
    
    
-        // 监听按键   F2 F8  F9  alt+1
+        // 监听按键   F2 F8  F9  ctrl+alt+1/2/3
         $(document).keydown(function(event) {
             switch (event.keyCode) {
                 case 119: // F8键
@@ -480,7 +480,7 @@ class MainApp{
         }
     }
     
-    // 添加一个测试XPath的函数
+    // 测试XPath的函数
     testXPath(xpath) {
         // 移除可能存在的'xpath:'前缀
         const cleanXPath = xpath.replace(/^xpath:/, '');
@@ -497,7 +497,7 @@ class MainApp{
         return result.snapshotLength; // 返回找到的元素数量
     }
 
-    // 修改复制XPath的函数
+    // 复制标准XPath的函数
     copyElementXPath() {
         const xpath = window.XPath_info;
         this.copyToClipboard(xpath);
@@ -516,9 +516,47 @@ class MainApp{
         alert(message);
     }
 
+    // 复制简短XPath的函数
+    copyShortElementXPath() {
+        const shortXPaths = this.getShortElementXPath(window.lastHoveredElement);
+        const shortXPath = "xpath:" + shortXPaths.simple;
+        this.copyToClipboard(shortXPath);
+        
+        // 测试XPath并获取匹配数量
+        const count = this.testXPath(shortXPath);
+        
+        // 根据匹配数量生成不同的提示信息
+        let message = `✔️已经复制下面简短XPath语法到剪贴板\n${shortXPath}\n`;
+        if (count === 0) {
+            message += "⚠️警告：当前XPath未能定位到任何元素";
+        } else {
+            message += `经检测定位到${count}个位置。`;
+        }
+        
+        alert(message);
+    }
 
+    // 复制组合XPath的函数
+    copyCombinedElementXPath() {
+        const shortXPaths = this.getShortElementXPath(window.lastHoveredElement);
+        const combinedXPath = "xpath:" + shortXPaths.combined;
+        this.copyToClipboard(combinedXPath);
+        
+        // 测试XPath并获取匹配数量
+        const count = this.testXPath(combinedXPath);
+        
+        // 根据匹配数量生成不同的提示信息
+        let message = `✔️已经复制下面组合XPath语法到剪贴板\n${combinedXPath}\n`;
+        if (count === 0) {
+            message += "⚠️警告：当前XPath未能定位到任何元素";
+        } else {
+            message += `经检测定位到${count}个位置。`;
+        }
+        
+        alert(message);
+    }
 
-    // 修改复制简短XPath的函数
+    // 获取简短XPath的函数
     getShortElementXPath(element) {
         let result = {
             simple: '',
@@ -703,33 +741,7 @@ class MainApp{
         return result;
     }
 
-    // 新增复制组合XPath的函数
-    copyCombinedElementXPath() {
-        const shortXPaths = this.getShortElementXPath(window.lastHoveredElement);
-        const combinedXPath = "xpath:" + shortXPaths.combined;
-        this.copyToClipboard(combinedXPath);
-        
-        // 测试XPath并获取匹配数量
-        const count = this.testXPath(combinedXPath);
-        
-        // 根据匹配数量生成不同的提示信息
-        let message = `✔️已经复制下面组合XPath语法到剪贴板\n${combinedXPath}\n`;
-        if (count === 0) {
-            message += "⚠️警告：当前XPath未能定位到任何元素";
-        } else {
-            message += `经检测定位到${count}个位置。`;
-        }
-        
-        alert(message);
-    }
-
-
-
-
-    
-      
-                
-    //  提取元素语法内容 并弹窗提示
+    // 提取元素语法内容 并弹窗提示
     extractInfoAndAlert(){
 
         let tishi2=window.anotherGlobalVar;
