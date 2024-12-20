@@ -286,6 +286,10 @@ class MainApp{
     //------------监听鼠标移动
      listen_mousemove_to_update_div(){
         let self=this;
+        let lastElement = null;
+        let lastUpdateTime = 0;
+        const THROTTLE_TIME = 100; // 100ms节流
+
         document.addEventListener('mousemove', async function(event) {
             //提取信息
             var hoveredElement = document.elementFromPoint(event.clientX, event.clientY);
@@ -1021,7 +1025,7 @@ class MainApp{
     return strategies.join(" | ");
   }
 
-  // 添加新方法：获取元素的层级结构
+  // 添加新方法：获取元素的层级结构（优化版本）
   getElementHierarchy(element) {
     if (!element || !(element instanceof Element)) {
         return "当前位置无法解析元素";
@@ -1030,15 +1034,24 @@ class MainApp{
     let hierarchy = [];
     let current = element;
     let index = 0;
+    
+    // 缓存 computedStyle 计算结果
+    const styleCache = new Map();
+    const getStyle = (el) => {
+        if (!styleCache.has(el)) {
+            styleCache.set(el, window.getComputedStyle(el));
+        }
+        return styleCache.get(el);
+    };
 
     while (current && current.tagName && index < 4) { // 最多显示4层
+        const style = getStyle(current);
         let elementInfo = {
             tag: current.tagName.toLowerCase(),
             classes: current.className,
             text: current.textContent?.trim().slice(0, 20),
-            zIndex: window.getComputedStyle(current).zIndex,
-            position: window.getComputedStyle(current).position,
-            isClickable: this.isClickable(current)
+            position: style.position !== 'static' ? style.position : '',
+            isClickable: this.isClickable(current, style)
         };
         
         hierarchy.unshift(elementInfo);
@@ -1046,36 +1059,53 @@ class MainApp{
         index++;
     }
 
-    // 格式化显示
+    // 格式化显示（简化版本）
     return hierarchy.map((info, index) => {
         let prefix = "—".repeat(index);
-        let clickable = info.isClickable ? "🖱️可点击" : "";
-        let position = info.position !== "static" ? `定位:${info.position}` : "";
-        let zIndex = info.zIndex !== "auto" ? `层级:${info.zIndex}` : "";
-        let classes = info.classes ? `class="${info.classes}"` : "";
-        let text = info.text ? `text="${info.text}"` : "";
+        let parts = [prefix + info.tag];
         
-        return `${prefix}${info.tag} ${clickable} ${position} ${zIndex} ${classes} ${text}`.trim();
+        if (info.isClickable) parts.push("🖱️可点击");
+        if (info.position) parts.push(`定位:${info.position}`);
+        if (info.classes) parts.push(`class="${info.classes}"`);
+        if (info.text) parts.push(`text="${info.text}"`);
+        
+        return parts.filter(Boolean).join(" ");
     }).join("\n");
   }
 
-  // 添加新方法：检查元素是否可点击
-  isClickable(element) {
-    const style = window.getComputedStyle(element);
-    const isVisible = style.display !== 'none' && 
-                     style.visibility !== 'hidden' && 
-                     style.opacity !== '0';
+  // 优化版本的可点击检测
+  isClickable(element, computedStyle = null) {
+    // 使用传入的 computedStyle 或获取新的
+    const style = computedStyle || window.getComputedStyle(element);
     
-    if (!isVisible) return false;
+    // 快速检查：如果元素不可见，直接返回false
+    if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+        return false;
+    }
 
-    // 检查是否有点击相关事件监听器
-    const hasClickHandler = element.onclick !== null || 
-                          element.getAttribute('onclick') !== null ||
-                          element.tagName.toLowerCase() === 'button' ||
-                          element.tagName.toLowerCase() === 'a' ||
-                          element.role === 'button';
+    // 快速检查：最常见的可点击特征
+    if (element.tagName.toLowerCase() === 'button' || 
+        element.tagName.toLowerCase() === 'a' ||
+        element.role === 'button' ||
+        style.cursor === 'pointer') {
+        return true;
+    }
 
-    return hasClickHandler;
+    // 检查class名称（Taro和其他框架的按钮特征）
+    const className = element.className || '';
+    if (className.includes('button') || 
+        className.includes('submit') || 
+        className.includes('clickable')) {
+        return true;
+    }
+
+    // 检查标签名（Taro组件）
+    if (element.tagName.toLowerCase().includes('taro-') && 
+        (className.includes('button') || element.textContent.trim() !== '')) {
+        return true;
+    }
+
+    return false;
   }
 
 }
