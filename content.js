@@ -516,28 +516,80 @@ class MainApp{
         alert(message);
     }
 
-    // 新增的，获取简短的XPath
+
+
+    // 修改复制简短XPath的函数
     getShortElementXPath(element) {
         let result = {
             simple: '',
             combined: ''
         };
         
-        // 1. 优先使用id
-        if (element && element.id) {
-            const idPath = `//*[@id="${element.id}"]`;
-            result.simple = idPath;
-            result.combined = `//${element.tagName.toLowerCase()}[@id="${element.id}"]`;
+        // 检查元素自身及其祖先元素的ID (最多3代)
+        let current = element;
+        let generation = 0;
+        let ancestorWithId = null;
+        
+        while (current && generation < 3) {
+            if (current.id) {
+                // 记录第一个找到的带ID的祖先
+                if (!ancestorWithId) {
+                    ancestorWithId = {
+                        element: current,
+                        generation: generation
+                    };
+                }
+            }
+            current = current.parentElement;
+            generation++;
+        }
+        
+        // 如果找到了带ID的元素(自身或祖先)
+        if (ancestorWithId) {
+            const idOwner = ancestorWithId.element;
+            const generations = ancestorWithId.generation;
+            
+            if (generations === 0) {
+                // 元素自身有ID
+                result.simple = `//*[@id="${element.id}"]`;
+                result.combined = `//${element.tagName.toLowerCase()}[@id="${element.id}"]`;
+            } else {
+                // 祖先元素有ID，需要构建相对路径
+                let relativePath = '';
+                let relativePathWithTags = '';
+                current = element;
+                
+                // 构建从当前元素到带ID祖先的路径
+                for (let i = 0; i < generations; i++) {
+                    if (i === 0) {
+                        // 当前元素
+                        relativePath = `*`;
+                        relativePathWithTags = current.tagName.toLowerCase();
+                    } else {
+                        // 添加路径分隔符
+                        relativePath = `*/${relativePath}`;
+                        relativePathWithTags = `${current.tagName.toLowerCase()}/${relativePathWithTags}`;
+                    }
+                    current = current.parentElement;
+                }
+                
+                // 构建最终的XPath
+                result.simple = `//*[@id="${idOwner.id}"]/${relativePath}`;
+                result.combined = `//${idOwner.tagName.toLowerCase()}[@id="${idOwner.id}"]/${relativePathWithTags}`;
+            }
             return result;
         }
         
         // 2. 尝试使用独特的class
         if (element.className && !element.className.includes(' ')) {
-            const classPath = `//*[@class="${element.className}"]`;
-            result.simple = classPath;
-            // 组合class和标签名
-            result.combined = `//${element.tagName.toLowerCase()}[@class="${element.className}"]`;
-            return result;
+            // 先验证class是否唯一
+            if (this.isClassUnique(element.className)) {
+                const classPath = `//*[@class="${element.className}"]`;
+                result.simple = classPath;
+                result.combined = `//${element.tagName.toLowerCase()}[@class="${element.className}"]`;
+                return result;
+            }
+            // 如果class不唯一，继续尝试下一个策略
         }
         
         // 3. 尝试使用name属性
@@ -548,7 +600,7 @@ class MainApp{
             result.combined = `//${element.tagName.toLowerCase()}[@name="${element.name}"]`;
             return result;
         }
-
+    
         // 4. 对于链接元素(a标签)的特殊处理
         if (element.tagName.toLowerCase() === 'a') {
             const text = element.textContent?.trim();
@@ -588,7 +640,7 @@ class MainApp{
                 }
             }
         }
-
+    
         // 5. 其他元素的文本内容处理
         const text = element.textContent?.trim();
         if (text && text.length < 20) {
@@ -607,7 +659,7 @@ class MainApp{
         }
         
         // 6. 后备方案：使用相对路径(只往上找2层)
-        let current = element;
+        current = element;
         let tagName = current.tagName.toLowerCase();
         let simplePath = `//${tagName}`;
         let combinedPath = `//${tagName}`;
@@ -649,26 +701,6 @@ class MainApp{
         result.simple = simplePath;
         result.combined = combinedPath;
         return result;
-    }
-
-    // 修改复制简短XPath的函数
-    copyShortElementXPath() {
-        const shortXPaths = this.getShortElementXPath(window.lastHoveredElement);
-        const shortXPath = "xpath:" + shortXPaths.simple;
-        this.copyToClipboard(shortXPath);
-        
-        // 测试XPath并获取匹配数量
-        const count = this.testXPath(shortXPath);
-        
-        // 根据匹配数量生成不同的提示信息
-        let message = `✔️已经复制下面简短XPath语法到剪贴板\n${shortXPath}\n`;
-        if (count === 0) {
-            message += "⚠️警告：当前XPath未能定位到任何元素";
-        } else {
-            message += `经检测定位到${count}个位置。`;
-        }
-        
-        alert(message);
     }
 
     // 新增复制组合XPath的函数
